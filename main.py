@@ -3,8 +3,8 @@ import requests
 import json
 import uuid
 
-API_KEY = "rdfRSygfyluDmb9jjW9HbE7J"
-SECRET_KEY = "T46HO11gROFAbwyMUHeYepMcOvoZix3E"
+API_KEY = ""
+SECRET_KEY = ""
 
 
 app = Flask(__name__)
