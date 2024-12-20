@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>AI 对话页面</title>
+<style>
+    body {
+        margin: 0;
+        padding: 0;
+        font-family: "Microsoft YaHei", sans-serif;
+        background: #f0f2f5;
+        height: 100vh;
+        display: flex;
+        color: #333;
+    }
+
+    .sidebar {
+        width: 260px;
+        background: #ffffff;
+        border-right: 1px solid #ddd;
+        display: flex;
+        flex-direction: column;
+        padding: 20px;
+        box-sizing: border-box;
+    }
+
+    .sidebar h2 {
+        font-size: 18px;
+        margin-bottom: 20px;
+        text-align: center;
+        color: #333;
+    }
+
+    .new-chat-btn {
+        display: block;
+        width: 100%;
+        text-align: center;
+        background: #409eff;
+        color: #fff;
+        border: none;
+        padding: 10px 0;
+        border-radius: 5px;
+        cursor: pointer;
+        margin-bottom: 20px;
+        font-size: 14px;
+        text-decoration: none;
+        line-height: 20px;
+    }
+
+    .new-chat-btn:hover {
+        background: #66b1ff;
+    }
+
+    .chat-list {
+        flex: 1;
+        overflow-y: auto;
+    }
+
+    .chat-item {
+        padding: 10px 0;
+        border-bottom: 1px solid #eee;
+        cursor: pointer;
+        font-size: 14px;
+        text-decoration: none;
+        color: #333;
+        display: block;
+    }
+
+    .chat-item:hover {
+        background: #f9f9f9;
+    }
+
+    .main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        background: #f0f2f5;
+    }
+
+    .header {
+        background: #409eff;
+        color: #fff;
+        padding: 15px;
+        text-align: center;
+        font-size: 18px;
+    }
+
+    .chat-window {
+        flex: 1;
+        padding: 20px;
+        box-sizing: border-box;
+        overflow-y: auto;
+        position: relative;
+    }
+
+    .message {
+        display: flex;
+        margin-bottom: 20px;
+        width: 100%;
+    }
+
+    .message.assistant .bubble {
+        margin-right: auto;
+        background: #ffffff;
+        border: 1px solid #eee;
+        color: #333;
+    }
+
+    .message.user .bubble {
+        margin-left: auto;
+        background: #409eff;
+        color: #fff;
+    }
+
+    .bubble {
+        max-width: 70%;
+        padding: 12px 15px;
+        border-radius: 8px;
+        line-height: 1.5;
+        word-wrap: break-word;
+        white-space: pre-wrap;
+        font-size: 14px;
+    }
+
+    .input-container {
+        border-top: 1px solid #ddd;
+        background: #ffffff;
+        padding: 10px;
+        display: flex;
+        align-items: center;
+    }
+
+    .input-box {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        background: #f9f9f9;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        padding: 5px;
+        margin-right: 10px;
+    }
+
+    .input-box textarea {
+        flex: 1;
+        border: none;
+        background: transparent;
+        outline: none;
+        resize: none;
+        font-size: 14px;
+        padding: 5px;
+        line-height: 1.5;
+    }
+
+    .send-btn {
+        background: #409eff;
+        color: #fff;
+        border: none;
+        padding: 10px 20px;
+        font-size: 14px;
+        border-radius: 5px;
+        cursor: pointer;
+    }
+
+    .send-btn:hover {
+        background: #66b1ff;
+    }
+
+    .footer {
+        text-align: center;
+        color: #aaa;
+        font-size: 12px;
+        margin: 10px 0;
+    }
+</style>
+</head>
+<body>
+    <div class="sidebar">
+        <h2>对话列表</h2>
+        <a href="{{ url_for('new_chat') }}" class="new-chat-btn">新建对话</a>
+        <div class="chat-list">
+            {% for cid, conv in conversations.items() %}
+                <a class="chat-item" href="{{ url_for('chat', chat_id=cid) }}">
+                    对话: {{ cid|truncate(8,true,'...') }}
+                </a>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="main">
+        <div class="header">与 AI 对话</div>
+        <div class="chat-window" id="chat-window">
+            {% if chat_history %}
+                {% for msg in chat_history %}
+                    <div class="message {{ msg.role }}">
+                        <div class="bubble">{{ msg.content }}</div>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        </div>
+        {% if current_chat_id %}
+        <form id="chat-form" method="post" action="{{ url_for('chat', chat_id=current_chat_id) }}" class="input-container">
+            <div class="input-box">
+                <textarea name="user_input" id="user_input" rows="1" placeholder="在此输入您的问题..."></textarea>
+            </div>
+            <button type="submit" class="send-btn">发送</button>
+        </form>
+        {% endif %}
+        <div class="footer">Powered by Wenxin & Flask</div>
+    </div>
+
+    <script>
+    const chatForm = document.getElementById('chat-form');
+    const chatWindow = document.getElementById('chat-window');
+    const userInput = document.getElementById('user_input');
+
+    if (chatForm) {
+        chatForm.addEventListener('submit', function(e) {
+            e.preventDefault(); // 阻止表单默认提交
+            const message = userInput.value.trim();
+            if (!message) return;
+
+            // 1. 先显示用户输入
+            appendMessage('user', message);
+
+            // 2. 显示AI正在思考中...
+            const thinkingMsg = appendMessage('assistant', 'AI正在思考中...');
+
+            // 3. 发送AJAX请求到后端
+            fetch(chatForm.action, {
+                method: 'POST',
+                body: new FormData(chatForm)
+            })
+            .then(response => response.text())
+            .then(html => {
+                // 用后端重新渲染的整页HTML进行局部更新
+                // 需要从返回的HTML中提取最新对话记录
+                // 简单的做法是后端返回JSON而非整页HTML
+                // 以下方法为简单演示，建议使用JSON接口！
+
+                // DEMO方式：使用JSON接口替代，下面的代码仅供参考：
+                // 实际中你应该在后端提供一个JSON返回的API，例如 /chat/<chat_id>/api
+                // 然后在这里解析JSON更新界面。
+
+                // 简单处理：重新从服务器获取新页面HTML片段（不建议生产用）
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const newChatWindow = doc.querySelector('#chat-window');
+                if (newChatWindow) {
+                    chatWindow.innerHTML = newChatWindow.innerHTML;
+                }
+
+            })
+            .catch(err => {
+                console.error(err);
+                // 如果出错，则用一条消息表示出错信息
+                thinkingMsg.querySelector('.bubble').textContent = '出错了，请重试。';
+            })
+            .finally(() => {
+                userInput.value = '';
+                chatWindow.scrollTop = chatWindow.scrollHeight;
+            });
+        });
+    }
+
+    function appendMessage(role, content) {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = 'message ' + role;
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble';
+        bubble.textContent = content;
+        msgDiv.appendChild(bubble);
+        chatWindow.appendChild(msgDiv);
+        chatWindow.scrollTop = chatWindow.scrollHeight;
+        return msgDiv;
+    }
+
+    </script>
+</body>
+</html>
